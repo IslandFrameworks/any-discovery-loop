@@ -1,0 +1,80 @@
+{
+  "section": 500,
+  "source": "loop/rounds/026 (two coupled cycles, absolute vs gauge arrow, OPEN item 5); executed by Claude",
+  "z3": [
+    {
+      "name": "500_1_R_invariant_functional_cannot_distinguish_cycles",
+      "expected": "unsat",
+      "result": "unsat",
+      "smt2": "; benchmark generated from python API\n(set-info :status unknown)\n(declare-fun m_0_2 () Real)\n(declare-fun m_0_1 () Real)\n(declare-fun m_2_0 () Real)\n(declare-fun m_1_0 () Real)\n(declare-fun m_2_2 () Real)\n(declare-fun m_1_1 () Real)\n(declare-fun m_2_1 () Real)\n(declare-fun m_1_2 () Real)\n(assert\n (= m_0_1 m_0_2))\n(assert\n (= m_1_0 m_2_0))\n(assert\n (= m_1_1 m_2_2))\n(assert\n (= m_1_2 m_2_1))\n(assert\n (let ((?x21 (+ (+ m_0_2 m_1_0) m_2_1)))\n(let ((?x19 (+ (+ m_0_1 m_1_2) m_2_0)))\n(and (distinct ?x19 ?x21) true))))\n(check-sat)\n"
+    },
+    {
+      "name": "500_2_swap_trace_discrete_product",
+      "expected": "unsat",
+      "result": "unsat",
+      "smt2": "; benchmark generated from python API\n(set-info :status unknown)\n(declare-fun sigma_C () Int)\n(declare-fun sigma_S () Int)\n(assert\n (or (= sigma_C 1) (= sigma_C (- 1))))\n(assert\n (let (($x23 (= sigma_S (- 1))))\n (let (($x51 (= sigma_S 1)))\n (or $x51 $x23))))\n(assert\n (let ((?x40 (* sigma_C sigma_S)))\n(let (($x42 (= ?x40 1)))\n(let ((?x32 (ite $x42 3 0)))\n(let ((?x39 (* 2 ?x32)))\n(and (distinct ?x39 (* 3 (+ 1 ?x40))) true))))))\n(check-sat)\n"
+    },
+    {
+      "name": "500_2_joint_reflection_invariance",
+      "expected": "unsat",
+      "result": "unsat",
+      "smt2": "; benchmark generated from python API\n(set-info :status unknown)\n(declare-fun sigma_C () Int)\n(declare-fun sigma_S () Int)\n(assert\n (or (= sigma_C 1) (= sigma_C (- 1))))\n(assert\n (let (($x23 (= sigma_S (- 1))))\n (let (($x51 (= sigma_S 1)))\n (or $x51 $x23))))\n(assert\n (let ((?x40 (* sigma_C sigma_S)))\n(and (distinct (* (- sigma_C) (- sigma_S)) ?x40) true)))\n(check-sat)\n"
+    },
+    {
+      "name": "500_3_planar_commutator_squared_relation",
+      "expected": "unsat",
+      "result": "unsat",
+      "smt2": "; benchmark generated from python API\n(set-info :status unknown)\n(assert\n (or false false false false false false false false false))\n(check-sat)\n"
+    },
+    {
+      "name": "500_4_causal_tick_advance_PT_invariant",
+      "expected": "unsat",
+      "result": "unsat",
+      "smt2": "; benchmark generated from python API\n(set-info :status unknown)\n(declare-fun sigma_clock () Int)\n(declare-fun sigma_cone () Int)\n(assert\n (or (= sigma_clock 1) (= sigma_clock (- 1))))\n(assert\n (let (($x91 (= sigma_cone (- 1))))\n (let (($x116 (= sigma_cone 1)))\n (or $x116 $x91))))\n(assert\n (let ((?x72 (* sigma_clock sigma_cone)))\n(and (distinct (* (- sigma_clock) (- sigma_cone)) ?x72) true)))\n(check-sat)\n"
+    },
+    {
+      "name": "500_5_PW_corotating_counterrotating_branches_distinct",
+      "expected": "unsat",
+      "result": "unsat",
+      "smt2": "; benchmark generated from python API\n(set-info :status unknown)\n(declare-fun k () Int)\n(assert\n (or (= k 1) (= k 2)))\n(assert\n (let ((?x60 (- 3 k)))\n(= k ?x60)))\n(check-sat)\n"
+    }
+  ],
+  "sympy": {
+    "500_1_charpoly": "lambda**3 - 1",
+    "500_1_traces_1_to_6": [
+      0,
+      0,
+      3,
+      0,
+      0,
+      3
+    ],
+    "500_2_swap_traces": {
+      "(1,1)": 3,
+      "(1,-1)": 0,
+      "(-1,1)": 0,
+      "(-1,-1)": 3
+    },
+    "500_3_complex_structure_J_v": [
+      [
+        0,
+        1
+      ],
+      [
+        -1,
+        0
+      ]
+    ],
+    "500_4_modular_signs_verified": true,
+    "500_5_PW_kernel_dims": {
+      "ker_co": 3,
+      "ker_counter": 3
+    },
+    "500_5_reduced_marginals_identical": true
+  },
+  "versions": {
+    "python": "3.12.3",
+    "sympy": "1.14.0",
+    "z3": "5.1.0"
+  }
+}
