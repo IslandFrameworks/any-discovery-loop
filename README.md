@@ -3,7 +3,7 @@
 Companion to *ANY: a relational algebra* by Graham Johns, Island Frameworks.
 Research preprint: [ANY: a relational algebra](https://doi.org/10.5281/zenodo.23380347).
 
-This supplement contains the research orchestration source used to propose, develop, audit, implement and integrate ANY research rounds. Round 026 (§500), summarized in paper §11.8, supplies a complete recorded example. The orchestration source is preserved with three configuration changes in `loop/discover.py`: the Vertex project and CLI paths are configurable via the environment, and Vertex authentication requires an explicit project.
+This supplement contains the research orchestration source used to propose, develop, audit, implement and integrate ANY research rounds. Round 026 (§500), summarized in paper §11.8, supplies a complete recorded example. Live model calls require explicit configuration by the person running the loop.
 
 ## Release status
 
@@ -53,10 +53,27 @@ The program refuses to append when the results file is missing, an outcome diffe
 
 `loop/discover.py` records the model routing, prompt construction and audit sequence. `loop/implement.py` records how revised claims produce candidate check files. A fresh live round requires a configured model backend, credentials supplied by the operator, and research context such as the operating document, graph progress, open questions and prerequisite check templates. The supplement supports an offline replay of the checks and integration decision. Live provider availability and historical model outputs can vary.
 
-## Working with generated files
+## Configure your own personal operator
 
-A live run may send the selected research context to the configured provider
-and write model-generated Python. Use a separate research workspace and your
-own provider configuration. Review generated code and the context it receives
-before executing or sharing a round. The local spend tracker is an estimate.
-Live provider charges are managed through the operator’s account.
+Run the loop as your own personal operator. Live providers are disabled by default.
+Set up the provider, credentials, and billing yourself. Any live usage is charged
+to the project or account you configure. IslandFrameworks provides the source
+and an offline replay.
+
+- **Vertex AI.** Set `ANY_LIVE_BACKENDS=vertex` and `ANY_VERTEX_PROJECT` to your
+  own Google Cloud project ID or number. Set up local Application Default
+  Credentials with access to that project. Create `loop/spend.json` with the
+  local estimate cap you choose and your tracked spend. For example, a cap
+  of USD 10 before your first run is `{"cap_usd": 10, "spent_usd": 0}`.
+  The tracker estimates Vertex costs. Manage actual billing in Google Cloud.
+  Set `"vertex_disabled": true` in that file to stop Vertex calls.
+- **Antigravity.** Opt in with `ANY_LIVE_BACKENDS=agy`, sign in to your own
+  Antigravity account, and use `--agy`.
+- **Codex.** Sign in to your own Codex account and include `codex` in
+  `ANY_LIVE_BACKENDS`. Discovery can use it for audits alongside an enabled
+  Gemini backend, for example with `ANY_LIVE_BACKENDS=vertex,codex`.
+  To choose Codex for the implementation step, use `--gpt`.
+
+A live run may send selected research context to your provider and write
+model-generated Python. Use a separate research workspace and review its
+context and generated code before executing or sharing a round.
