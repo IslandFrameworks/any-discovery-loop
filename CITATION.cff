@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "For claims in the paper, cite the research preprint."
+title: "ANY Discovery Loop"
+type: software
+authors:
+  - family-names: Johns
+    given-names: Graham
+    affiliation: Island Frameworks
+preferred-citation:
+  type: article
+  title: "ANY: a relational algebra"
+  authors:
+    - family-names: Johns
+      given-names: Graham
+  year: 2026
+  doi: 10.5281/zenodo.23380347

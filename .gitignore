@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.env.*
+*.log
+*.status
+loop/.gpt_scratch/
+loop/spend.json
+loop/ledger.jsonl
+loop/rounds/*
+!loop/rounds/026/
+graph/data/
+volumes/
