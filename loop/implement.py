@@ -2,7 +2,7 @@
 """Implement step: a model (Argon by default, GPT-6 via Codex with --gpt) turns a finished round's revised section and
 claims into the archive's executable form, so Claude only runs, reads and judges.
 
-    python3 loop/implement.py N [--gpt] [--topic short_name]
+    python3 loop/implement.py N [--gpt | --agy] [--topic short_name]
 
 Writes graph/derive_<topic>_s<SEC>.py, graph/tests/test_<topic>_s<SEC>.py and loop/rounds/NNN/section.md (the volume
 section text without rebuttals or claims JSON). Nothing is run and the volume is not touched; see loop/integrate.py.
@@ -62,10 +62,19 @@ def parse_files(text):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("round", type=int)
-    ap.add_argument("--gpt", action="store_true")
+    provider = ap.add_mutually_exclusive_group()
+    provider.add_argument("--gpt", action="store_true", help="use your configured Codex CLI")
+    provider.add_argument("--agy", action="store_true", help="use your configured Antigravity CLI")
     ap.add_argument("--argon", action="store_true", help="Argon instead of 3.8 Flash when GPT is not used")
     ap.add_argument("--topic", default="")
     a = ap.parse_args()
+    discover.AGY = a.agy
+    if a.gpt:
+        discover.require_live_backend("codex")
+    elif a.agy:
+        discover.require_live_backend("agy")
+    else:
+        discover.vertex_spend_state()
     if a.argon:
         discover.MODEL = discover.ARGON
     rd = os.path.join(LOOP, "rounds", f"{a.round:03d}")
@@ -77,10 +86,14 @@ def main():
     prompt = BRIEF.format(topic=topic, sec=sec, nnn=f"{a.round:03d}", template=open(TEMPLATE).read(),
                           test_template=open(TEST_TEMPLATE).read(), revise=revise,
                           claims=open(os.path.join(rd, "claims.json"), encoding="utf-8").read())
-    text = discover.gpt(prompt, a.round, "implement") if a.gpt else None
-    implementer = "gpt" if text else "argon"
-    if not text:
+    if a.gpt:
+        text = discover.gpt(prompt, a.round, "implement")
+        if not text:
+            sys.exit("Codex returned no implementation.")
+        implementer = "gpt"
+    else:
         text = discover.argon(prompt, a.round, "implement", temperature=0.2, max_tokens=65000)
+        implementer = "agy" if a.agy else "argon"
     open(os.path.join(rd, "05_implement_raw.md"), "w", encoding="utf-8").write(text)
     files = parse_files(text)
     allowed = {f"graph/derive_{topic}_s{sec}.py", f"graph/tests/test_{topic}_s{sec}.py"}

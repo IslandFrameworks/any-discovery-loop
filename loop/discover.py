@@ -12,7 +12,7 @@ Turn order: propose (Argon) -> develop (Argon) -> adversarial audit (GPT-6 when 
 Context for every turn: ANY.md, active Volume VI (tail-capped), PROGRESS.md tail, loop/OPEN.md, and the previous
 round's loop/rounds/<N-1>/claude_check.md. Every call is logged to loop/ledger.jsonl (tokens, served model, seconds).
 """
-import argparse, datetime, json, os, re, subprocess, sys, time, urllib.request, urllib.error
+import argparse, datetime, json, math, os, re, subprocess, sys, time, urllib.request, urllib.error
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOOP = os.path.join(ROOT, "loop")
@@ -20,9 +20,8 @@ VOLUME = os.path.join(ROOT, "volumes", "11_Laws_Research_Volume_VI.md")
 PROJECT = os.environ.get("ANY_VERTEX_PROJECT", "")
 ARGON = "gemini-4-argon"
 FLASH = "gemini-3.8-flash"
-MODEL = FLASH  # Graham 2026-10-14: Flash by default until the startup grant lands; Argon only with --argon
-# Spend cap (Graham 2026-10-14: "it NEEDS to cut off"). Prices per 1M tokens, the HIGHER published rate
-# (Argon $4/$20 after its $2/$10 promo; Flash $0.75/$3.75), thinking counted as output, so the estimate runs high.
+MODEL = FLASH
+# Historical estimates in USD per million tokens. Thinking tokens count as output.
 PRICES = {ARGON: (4.0, 20.0), FLASH: (0.75, 3.75)}
 # Context cache: cached input billed at 10% of input (published discount is larger), storage per 1M tokens per hour
 # priced high; the whole TTL is charged up front when the cache is created.
@@ -31,25 +30,41 @@ STORAGE_PER_MTOK_HOUR = {ARGON: 4.5, FLASH: 1.0}
 CACHE_TTL_S = 3600
 CACHE = {}  # {"text": shared context, "name": cachedContents resource, "model": model}
 SPEND_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spend.json")
-SPEND_CAP = 60.0
 
 
-def spend_state():
+def live_backend_enabled(backend):
+    configured = os.environ.get("ANY_LIVE_BACKENDS", "").split(",")
+    return backend in (name.strip() for name in configured)
+
+
+def require_live_backend(backend):
+    if not live_backend_enabled(backend):
+        raise SystemExit(f"Live backend {backend} is disabled. Configure your own account and opt in with ANY_LIVE_BACKENDS.")
+
+
+def vertex_spend_state():
+    require_live_backend("vertex")
+    if not re.fullmatch(r"[a-z][a-z0-9-]*|[0-9]+", PROJECT):
+        raise SystemExit("Set ANY_VERTEX_PROJECT to your Google Cloud project ID or number before using Vertex.")
     try:
-        return json.load(open(SPEND_FILE))
-    except FileNotFoundError:
-        return {"cap_usd": SPEND_CAP, "spent_usd": 0.0}
-
-
-def vertex_disabled():
-    """Graham's kill switch: "vertex_disabled": true in loop/spend.json blocks every Vertex call (credit exhausted)."""
-    return bool(spend_state().get("vertex_disabled"))
+        with open(SPEND_FILE, encoding="utf-8") as f:
+            state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        raise SystemExit("Create a valid loop/spend.json with your Vertex estimate cap and spend total.") from None
+    if not isinstance(state, dict):
+        raise SystemExit("loop/spend.json must contain a JSON object.")
+    if state.get("vertex_disabled"):
+        raise SystemExit("Vertex is disabled in loop/spend.json.")
+    cap, spent = state.get("cap_usd"), state.get("spent_usd")
+    if not all(type(value) in (int, float) and math.isfinite(value) for value in (cap, spent)) or cap <= 0 or spent < 0:
+        raise SystemExit("loop/spend.json needs a positive cap_usd and nonnegative spent_usd.")
+    return state
 
 
 def charge(model, prompt_tokens, output_tokens, cached_tokens=0, extra_usd=0.0):
     pin, pout = PRICES.get(model, PRICES[ARGON])
     fresh = (prompt_tokens or 0) - (cached_tokens or 0)
-    st = spend_state()
+    st = vertex_spend_state()
     st["spent_usd"] = round(st["spent_usd"] + fresh / 1e6 * pin + (cached_tokens or 0) / 1e6 * pin * CACHED_FRACTION
                             + (output_tokens or 0) / 1e6 * pout + extra_usd, 4)
     json.dump(st, open(SPEND_FILE, "w"), indent=1)
@@ -57,12 +72,12 @@ def charge(model, prompt_tokens, output_tokens, cached_tokens=0, extra_usd=0.0):
 
 
 def check_budget(model, prompt, max_tokens):
-    """Refuse a call whose worst case (prompt ~ chars/3 tokens, full max_tokens out) would cross the cap."""
+    """Refuse a call whose estimated cost would cross the local cap."""
     pin, pout = PRICES.get(model, PRICES[ARGON])
-    st = spend_state()
-    worst = len(prompt) / 3 / 1e6 * pin + max_tokens / 1e6 * pout
-    if st["spent_usd"] + worst > st["cap_usd"]:
-        raise SystemExit(f"SPEND CAP: estimated ${st['spent_usd']:.2f} spent + ${worst:.2f} worst case for this call "
+    st = vertex_spend_state()
+    estimate = len(prompt) / 3 / 1e6 * pin + max_tokens / 1e6 * pout
+    if st["spent_usd"] + estimate > st["cap_usd"]:
+        raise SystemExit(f"SPEND CAP: estimated ${st['spent_usd']:.2f} spent + ${estimate:.2f} for this call "
                          f"> cap ${st['cap_usd']:.2f} (loop/spend.json). Vertex call refused.")
 GCLOUD = os.environ.get("ANY_GCLOUD", "gcloud")
 CODEX = os.environ.get("ANY_CODEX", "codex")
@@ -154,13 +169,15 @@ def context(round_no, extra=()):
     return "\n\n".join(f"===== {name} =====\n{body}" for name, body in parts)
 
 
-def _token():
-    if not PROJECT:
-        raise SystemExit("Set ANY_VERTEX_PROJECT before using Vertex.")
-    if vertex_disabled():
-        raise SystemExit("VERTEX DISABLED (loop/spend.json vertex_disabled): use --agy, or Codex/GPT.")
-    return subprocess.run([GCLOUD, "auth", "application-default", "print-access-token"],
-                          capture_output=True, text=True, check=True).stdout.strip()
+def _vertex_headers():
+    vertex_spend_state()
+    token = subprocess.run([GCLOUD, "auth", "application-default", "print-access-token"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "x-goog-user-project": PROJECT,
+    }
 
 
 def open_cache(text, model=None):
@@ -170,7 +187,7 @@ def open_cache(text, model=None):
     pin, _ = PRICES.get(model, PRICES[ARGON])
     est_tokens = len(text) / 3
     create_usd = est_tokens / 1e6 * pin + est_tokens / 1e6 * STORAGE_PER_MTOK_HOUR.get(model, 4.5) * CACHE_TTL_S / 3600
-    st = spend_state()
+    st = vertex_spend_state()
     if st["spent_usd"] + create_usd > st["cap_usd"]:
         raise SystemExit(f"SPEND CAP: cache creation (${create_usd:.2f}) would cross the cap.")
     url = f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/global/cachedContents"
@@ -178,7 +195,7 @@ def open_cache(text, model=None):
                        "contents": [{"role": "user", "parts": [{"text": text}]}],
                        "ttl": f"{CACHE_TTL_S}s"}).encode()
     try:
-        req = urllib.request.Request(url, body, {"Authorization": f"Bearer {_token()}", "Content-Type": "application/json"})
+        req = urllib.request.Request(url, body, _vertex_headers())
         d = json.load(urllib.request.urlopen(req, timeout=600))
     except Exception as e:  # noqa: BLE001 - caching is an optimisation only
         detail = e.read().decode()[:300] if isinstance(e, urllib.error.HTTPError) else str(e)
@@ -198,9 +215,9 @@ def close_cache():
         return
     try:
         req = urllib.request.Request(f"https://aiplatform.googleapis.com/v1/{CACHE['name']}",
-                                     headers={"Authorization": f"Bearer {_token()}"}, method="DELETE")
+                                     headers=_vertex_headers(), method="DELETE")
         urllib.request.urlopen(req, timeout=120)
-    except Exception:  # noqa: BLE001 - it expires on its own after the TTL
+    except (Exception, SystemExit):  # noqa: BLE001 - it expires on its own after the TTL
         pass
     CACHE.clear()
 
@@ -213,6 +230,7 @@ def log(entry):
 def agy_call(prompt, round_no, step, model):
     """One Gemini turn through the agy CLI. The prompt goes over stdin as stream-json, split into parts below agy's
     per-message limit, followed by a final message that asks for the answer. No Vertex spend."""
+    require_live_backend("agy")
     parts = [prompt[i:i + AGY_CHUNK] for i in range(0, len(prompt), AGY_CHUNK)]
     lines = []
     for i, part in enumerate(parts):
@@ -244,14 +262,12 @@ def agy_call(prompt, round_no, step, model):
 def argon(prompt, round_no, step, temperature=0.4, max_tokens=32000, model=None):
     """One Vertex call (Flash by default, Argon with --argon), behind the spend cap; with --agy, one agy turn instead."""
     model = model or MODEL
-    if AGY or vertex_disabled():
+    if AGY:
         return agy_call(prompt, round_no, step, model)
     cached = CACHE.get("name") if CACHE.get("model") == model and CACHE.get("text") and CACHE["text"] in prompt else None
     if cached:
         prompt = prompt.replace(CACHE["text"], "(The shared context for this round, ANY.md, the volumes, OPEN.md and "
                                                 "the graph records, is the cached content given before this message.)")
-    check_budget(model, prompt, max_tokens)
-    token = _token()
     url = (f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/global/publishers/google/models/"
            f"{model}:generateContent")
     payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -260,8 +276,9 @@ def argon(prompt, round_no, step, temperature=0.4, max_tokens=32000, model=None)
         payload["cachedContent"] = cached
     body = json.dumps(payload).encode()
     for attempt in range(4):
+        check_budget(model, prompt, max_tokens)
         t = time.time()
-        req = urllib.request.Request(url, body, {"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        req = urllib.request.Request(url, body, _vertex_headers())
         try:
             d = json.load(urllib.request.urlopen(req, timeout=1200))
         except urllib.error.HTTPError as e:
@@ -284,7 +301,8 @@ def argon(prompt, round_no, step, temperature=0.4, max_tokens=32000, model=None)
 
 
 def gpt(prompt, round_no, step):
-    """GPT-6 via Codex in an empty directory, read-only, high reasoning. Returns None when quota is exhausted."""
+    """GPT-6 via Codex with read-only filesystem access. Returns None if no response was produced."""
+    require_live_backend("codex")
     work = os.path.join(LOOP, ".gpt_scratch")
     os.makedirs(work, exist_ok=True)
     out = os.path.join(work, f"r{round_no:03d}_{step}.txt")
@@ -347,6 +365,14 @@ def main():
                     help="auditor<->developer exchanges before the revision (1 = single audit)")
     a = ap.parse_args()
     global MODEL, AGY
+    AGY = a.agy
+    if AGY:
+        require_live_backend("agy")
+    else:
+        vertex_spend_state()
+    if a.gpt_develop:
+        require_live_backend("codex")
+    a.no_gpt = a.no_gpt or not live_backend_enabled("codex")
     if a.argon:
         MODEL = ARGON
     rounds = os.path.join(LOOP, "rounds")
@@ -357,7 +383,6 @@ def main():
     os.makedirs(out, exist_ok=True)
     sec = a.section or next_section()
     ctx = context(n, a.extra)
-    AGY = a.agy or vertex_disabled()
     if not a.no_cache and not AGY:
         import atexit
         open_cache(ctx)
