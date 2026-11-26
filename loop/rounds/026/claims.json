@@ -1,0 +1,104 @@
+[
+  {
+    "id": "C1",
+    "statement": "On the 3-state cycle algebra A_cyc = span{I3, S, K}, every R-invariant linear functional satisfies F_even(C+) = F_even(C-) = F_even(S)/2, while every R-odd functional satisfies F_odd(C+) = -F_odd(C-) = F_odd(K)/2; consequently, every basis-independent scalar functional phi depending only on similarity satisfies phi(C+) = phi(C-), including char(C+) = char(C-) = lambda^3 - 1 and Tr(C+^m) = Tr(C-^m) for all m.",
+    "premises": {
+      "native": [
+        "Role-congruence ≃ vs = (ANY.md §3)",
+        "Zero-residual interrogation (ANY.md §3)"
+      ],
+      "conditional": [
+        "S3 transposition representation on R^3",
+        "Cycle algebra A_cyc"
+      ],
+      "imported": [
+        "Dihedral group D3 algebra"
+      ]
+    },
+    "near_miss": "Claiming that an isolated 3-cycle possesses a basis-independent scalar invariant that distinguishes C+ from C- without an entered R-odd reference vector.",
+    "encoding": "SymPy verification of R-even/odd decomposition on A_cyc, charpoly, and traces; Z3 QF_NRA query showing F(C+) - F(C-) = 0 for all R-invariant functionals.",
+    "expected": "UNSAT for F(C+) != F(C-) under R-invariance; certified identities in SymPy.",
+    "falsifier": "Finding an R-invariant linear functional on A_cyc that yields distinct values on C+ and C-."
+  },
+  {
+    "id": "C2",
+    "statement": "For two coupled 3-cycles U_C = C_+^{sigma_C} and U_S = C_+^{sigma_S} (sigma_C, sigma_S in {+1, -1}), the swap-contraction trace T_rel := Tr(SWAP(U_C (x) U_S^dag)) = Tr(U_C U_S^-1) evaluates to 3 if sigma_C = sigma_S (co-rotating) and 0 if sigma_C != sigma_S (counter-rotating), and is strictly invariant under joint mirror reflection R_tot = R (x) R: T_rel(R U_C R, R U_S R) = T_rel(U_C, U_S).",
+    "premises": {
+      "native": [
+        "A ≃ N(Y) (ANY.md §4)"
+      ],
+      "conditional": [
+        "Two-cycle tensor product H_C (x) H_S",
+        "SWAP contraction operator"
+      ],
+      "imported": [
+        "Matrix trace cyclic and tensor properties"
+      ]
+    },
+    "near_miss": "Claiming that joint mirror reflection flips the relative orientation or alters the swap trace T_rel.",
+    "encoding": "SymPy verification of Tr(U_C U_S^-1) for all 4 sign configurations; Z3 QF_NRA query confirming T_rel is 3 for co-rotating and 0 for counter-rotating, and invariant under R_tot.",
+    "expected": "UNSAT for any deviation from T_rel = 3*delta(sigma_C, sigma_S); certified in SymPy.",
+    "falsifier": "Finding a sign configuration where T_rel fails to distinguish co-rotating from counter-rotating, or where R_tot changes T_rel."
+  },
+  {
+    "id": "C3",
+    "statement": "On the 2D traceless subspace V_0 = 1^perp subset R^3, the normalized commutator J := K|_{V_0} / sqrt(3) satisfies J^2 = -I_{V_0}, defining an exact planar complex structure; the mirror R satisfies R J R = -J (acting as complex conjugation J |-> -J); in the orthonormal R-eigenbasis {v_+, v_-}, [R] = sigma_z and [J] = -i sigma_y with {sigma_z, -i sigma_y} = 0; and the cycles restrict to C_+|_{V_0} = -1/2 I_{V_0} + sqrt(3)/2 J and C_-|_{V_0} = -1/2 I_{V_0} - sqrt(3)/2 J.",
+    "premises": {
+      "native": [
+        "Relational role collapse and representation rules (ANY.md §4, §422)"
+      ],
+      "conditional": [
+        "Traceless subspace V_0 = 1^perp",
+        "Commutator K = [T2, T1]"
+      ],
+      "imported": [
+        "Planar complex structure definition J^2 = -I"
+      ]
+    },
+    "near_miss": "Claiming that the choice between C+ and C- is independent of the choice of planar orientation / complex unit sign.",
+    "encoding": "SymPy symbolic matrix calculation projecting K and R onto {v_+, v_-} and {u_1, u_2}, verifying J^2 = -I_2, R J R = -J, and C_pm decomposition; Z3 QF_LRA query checking K^2 + 3(I_3 - P_sym) = 0.",
+    "expected": "Exact symbolic verification in SymPy and UNSAT for K^2 + 3(I_3 - P_sym) != 0 in Z3.",
+    "falsifier": "Finding that J^2 != -I_2 on V_0 or that R fails to anticommute with J."
+  },
+  {
+    "id": "C4",
+    "statement": "In (1+1) Minkowski spacetime, a causal light signal propagating across distance L = |Delta x| > 0 has coordinate arrival duration t_rec - t_emit = sigma_cone * L/c (sigma_cone in {+1, -1}); coupling to an internal 3-cycle clock with tick direction sigma_clock in {+1, -1} yields a tick arrival increment satisfying sgn_3(Delta k) = sigma_clock * sigma_cone; the product sigma_clock * sigma_cone is invariant under total spacetime inversion PT.",
+    "premises": {
+      "native": [
+        "D/T = C native boundary (ANY.md §2)"
+      ],
+      "conditional": [
+        "3-cycle clock coupling to null ray",
+        "Centered modular sign sgn_3"
+      ],
+      "imported": [
+        "(1+1) Minkowski metric",
+        "Causal cone definition"
+      ]
+    },
+    "near_miss": "Claiming that causal signal propagation fixes the absolute sign of the clock rather than the bilinear product sigma_clock * sigma_cone.",
+    "encoding": "SymPy check of event coordinates, null ray arrival duration, and centered modular tick increments under PT; Z3 QF_NRA query.",
+    "expected": "UNSAT for PT violation of the relative product sign; exact tick match.",
+    "falsifier": "Demonstrating that an emission-absorption signal can determine the absolute clock orientation without entering a causal cone arrow."
+  },
+  {
+    "id": "C5",
+    "statement": "In the Page-Wootters bipartite 3-cycle model, the co-rotating constraint (I_9 - C_3 (x) C_3)|Psi> = 0 yields conditional tick succession s_k = k mod 3, while the counter-rotating constraint (I_9 - C_3 (x) C_3^-1)|Psi> = 0 yields s_k = -k mod 3; both branches possess 3D kernels and identical unconditioned marginals rho_S = 1/3 I_3, with ker(I_9 - C_3 (x) C_3) strictly invariant under joint reflection R (x) R; leaving loop/OPEN.md Item 5 STILL OPEN because native ANY does not select co-rotating over counter-rotating without an entered boundary contract.",
+    "premises": {
+      "native": [
+        "Zero-residual interrogation (ANY.md §3)"
+      ],
+      "conditional": [
+        "Bipartite 3-cycle Page-Wootters model"
+      ],
+      "imported": [
+        "Hilbert space tensor product",
+        "Bayes conditioning"
+      ]
+    },
+    "near_miss": "Claiming that the Page-Wootters constraint uniquely selects the co-rotating branch over the counter-rotating branch.",
+    "encoding": "SymPy verification of kernels of I_9 - C_3 (x) C_3 and I_9 - C_3 (x) C_3^-1, their conditional probabilities, reduced density matrices, and R (x) R invariance; Z3 QF_NRA check.",
+    "expected": "Both kernels have dimension 3; unconditioned density matrices are identical (1/3 I_3); conditional progressions are exact opposites; kernel invariant under R (x) R.",
+    "falsifier": "Finding that one of the constraints has a trivial kernel or that native ANY derives a preference for co-rotation."
+  }
+]
